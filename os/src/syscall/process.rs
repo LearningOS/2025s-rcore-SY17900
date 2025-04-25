@@ -1,7 +1,7 @@
 //! Process management syscalls
 use core::slice::from_raw_parts;
 
-use crate::{mm::{get_u8_mut_by_va, translated_byte_buffer, VirtAddr}, task::{change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_count, suspend_current_and_run_next}, timer::get_time_us};
+use crate::{mm::{get_u8_by_va, get_u8_mutable_by_va, translated_byte_buffer, MapPermission, VirtAddr}, task::{change_program_brk, create_memory_map, current_user_token, delete_memory_map, exit_current_and_run_next, get_syscall_count, suspend_current_and_run_next}, timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -59,7 +59,7 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
     match trace_request {
         0 => {
-            match get_u8_mut_by_va(current_user_token(), VirtAddr::from(id)) {
+            match get_u8_by_va(current_user_token(), VirtAddr::from(id)) {
                 Some(rf) => {
                     *rf as isize
                 },
@@ -67,7 +67,7 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
             }
         }
         1 => {
-            match get_u8_mut_by_va(current_user_token(), VirtAddr::from(id)) {
+            match get_u8_mutable_by_va(current_user_token(), VirtAddr::from(id)) {
                 Some(rf) => {
                     *rf = data as u8;
                     0
@@ -81,16 +81,28 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    let start_va = VirtAddr::from(start);
+    if !start_va.aligned() || port & !0x7 != 0 || port & 0x7 == 0 {
+        return -1;
+    }
+
+    let mut pms = MapPermission::from_bits_truncate((port << 1) as u8);
+    pms |= MapPermission::U;
+    create_memory_map(start_va, (start + len).into(), pms)
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    let start_va = VirtAddr::from(start);
+    if !start_va.aligned() {
+        return -1;
+    }
+    delete_memory_map(start_va, (start + len).into())
 }
+
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
     trace!("kernel: sys_sbrk");

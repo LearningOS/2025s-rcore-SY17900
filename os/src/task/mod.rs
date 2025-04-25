@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -169,6 +170,22 @@ impl TaskManager {
         let current_tcb = & inner.tasks[current_task];
         current_tcb.get_syscall_count(syscall_id)
     }
+
+    /// Create memory map
+    fn create_memory_map(&self, sva: VirtAddr, eva: VirtAddr, pms: MapPermission) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let current_tcb = & mut inner.tasks[current_task];
+        current_tcb.memory_set.check_and_insert_framed_area(sva, eva, pms)
+    }
+
+    /// Delete memory map
+    fn delete_memory_map(&self, sva: VirtAddr, eva: VirtAddr) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current_task = inner.current_task;
+        let current_tcb = & mut inner.tasks[current_task];
+        current_tcb.memory_set.delete_framed_area(sva, eva)
+    }
 }
 
 /// Run the first task in task list.
@@ -227,4 +244,14 @@ pub fn increase_syscall_count(syscall_id: usize) {
 /// Get current `Running` task's syscall count by syscall_id
 pub fn get_syscall_count(syscall_id: usize) -> u32 {
     TASK_MANAGER.get_syscall_count(syscall_id)
+}
+
+/// Create memory map by given virtual address
+pub fn create_memory_map(sva: VirtAddr, eva: VirtAddr, pms: MapPermission) -> isize {
+    TASK_MANAGER.create_memory_map(sva, eva, pms)
+}
+
+/// Delete memory map by given virtual address
+pub fn delete_memory_map(sva: VirtAddr, eva: VirtAddr) -> isize {
+    TASK_MANAGER.delete_memory_map(sva, eva)
 }
