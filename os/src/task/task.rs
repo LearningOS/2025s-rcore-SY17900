@@ -6,6 +6,8 @@ use crate::mm::{
 };
 use crate::trap::{trap_handler, TrapContext};
 
+use crate::syscall::MAX_SYSCALL_ID;
+
 /// The task control block (TCB) of a task.
 pub struct TaskControlBlock {
     /// Save task context
@@ -13,6 +15,9 @@ pub struct TaskControlBlock {
 
     /// Maintain the execution status of the current process
     pub task_status: TaskStatus,
+
+    /// Syscall count records
+    pub syscall_count: [u32; MAX_SYSCALL_ID + 1],
 
     /// Application address space
     pub memory_set: MemorySet,
@@ -58,6 +63,7 @@ impl TaskControlBlock {
         let task_control_block = Self {
             task_status,
             task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+            syscall_count: [0; MAX_SYSCALL_ID + 1],
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
@@ -95,6 +101,21 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// Increase syscall count by syscall_id
+    pub fn increase_syscall_count(&mut self, syscall_id: usize) {
+        if syscall_id > MAX_SYSCALL_ID {
+            panic!("Unsupported syscall_id: {syscall_id}");
+        }
+        self.syscall_count[syscall_id] += 1;
+    }
+    /// Get syscall count by syscall_id
+    pub fn get_syscall_count(&self, syscall_id: usize) -> u32 {
+        if syscall_id > MAX_SYSCALL_ID {
+            panic!("Unsupported syscall_id: {syscall_id}");
+        }
+        self.syscall_count[syscall_id]
     }
 }
 

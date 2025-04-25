@@ -1,7 +1,7 @@
 //! Process management syscalls
 use core::slice::from_raw_parts;
 
-use crate::{mm::translated_byte_buffer, task::{change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
+use crate::{mm::{get_u8_mut_by_va, translated_byte_buffer, VirtAddr}, task::{change_program_brk, current_user_token, exit_current_and_run_next, get_syscall_count, suspend_current_and_run_next}, timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -55,9 +55,29 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 /// TODO: Finish sys_trace to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
-    -1
+    match trace_request {
+        0 => {
+            match get_u8_mut_by_va(current_user_token(), VirtAddr::from(id)) {
+                Some(rf) => {
+                    *rf as isize
+                },
+                None => -1
+            }
+        }
+        1 => {
+            match get_u8_mut_by_va(current_user_token(), VirtAddr::from(id)) {
+                Some(rf) => {
+                    *rf = data as u8;
+                    0
+                },
+                None => -1
+             }
+        }
+        2 => return get_syscall_count(id) as isize,
+        _ => panic!("Unsupported trace_request: {trace_request}!"),
+    }
 }
 
 // YOUR JOB: Implement mmap.
